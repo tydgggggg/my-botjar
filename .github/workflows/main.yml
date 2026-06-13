@@ -6,7 +6,8 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
+  # جاب اول: مسئول بیلد کردن مود (کارد بیلد)
+  build-mod:
     runs-on: ubuntu-latest
 
     steps:
@@ -86,7 +87,6 @@ jobs:
         }
         EOF
 
-        # رفع باگ لود نشدن آیکون در ModMenu
         if [ -f "file_00000000d974722f95ee81adcf415ec7.png" ]; then
           cp file_00000000d974722f95ee81adcf415ec7.png src/main/resources/icon.png
         elif [ -f "icon.png" ]; then
@@ -97,7 +97,6 @@ jobs:
           printf '\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15\xc4\x89\x00\x00\x00\rIDATx\x9cc`\x00\x01\x00\x00\x05\x00\x01\r\n-\xb4\x00\x00\x00\x00IEND\xaeB`\x82' > src/main/resources/icon.png
         fi
 
-        # ثبت تمامی میکس‌این‌ها به همراه میکس‌این رندرر جدید برای کپچر تصاویر شارد ضبط
         cat << 'EOF' > src/main/resources/fpsboost.mixins.json
         {
           "required": true,
@@ -119,7 +118,6 @@ jobs:
         }
         EOF
 
-        # میکس‌این ۱: حذف کامل پارتیکل‌ها برای بهینه‌سازی پردازنده گرافیکی Mali
         cat << 'EOF' > src/main/java/com/fpsboost/mixin/ParticleManagerMixin.java
         package com.fpsboost.mixin;
 
@@ -139,7 +137,6 @@ jobs:
         }
         EOF
 
-        # میکس‌این ۲: رندر نکردن چست‌ها وقتی پشت سر پلیر هستند
         cat << 'EOF' > src/main/java/com/fpsboost/mixin/BlockEntityRenderMixin.java
         package com.fpsboost.mixin;
 
@@ -180,7 +177,6 @@ jobs:
         }
         EOF
 
-        # میکس‌این ۳: رندر نکردن آرمور استندها وقتی دیدرس پلیر نیستند
         cat << 'EOF' > src/main/java/com/fpsboost/mixin/EntityRenderMixin.java
         package com.fpsboost.mixin;
 
@@ -215,7 +211,6 @@ jobs:
         }
         EOF
 
-        # میکس‌این ۴: نمایشگر پایش وضعیت هاد بازی + وضعیت زنده رکوردر شارد پروکسی
         cat << 'EOF' > src/main/java/com/fpsboost/mixin/HudMixin.java
         package com.fpsboost.mixin;
 
@@ -242,7 +237,6 @@ jobs:
                         String fpsText = "§aFPS: §f" + client.getCurrentFps();
                         context.drawText(client.textRenderer, fpsText, 10, 10, 0xFFFFFF, true);
 
-                        // وضعیت زنده استریم ویدیو روی شارد دوم
                         if (RemoteRecordEngine.isRecording()) {
                             context.drawText(client.textRenderer, "§d[🔴 SHARD RECORDING ACTIVE] Queue: " + RemoteRecordEngine.getQueueSize(), 10, 22, 0xFF55FF, true);
                         }
@@ -261,7 +255,6 @@ jobs:
         }
         EOF
 
-        # میکس‌این ۵: افزودن دکمه منوی اختصاصی کنترل مود به بخش تنظیمات ویدیو بازی
         cat << 'EOF' > src/main/java/com/fpsboost/mixin/VideoOptionsMixin.java
         package com.fpsboost.mixin;
 
@@ -293,7 +286,6 @@ jobs:
         }
         EOF
 
-        # میکس‌این ۶: پاکسازی منابع غیرضروری رم گوشی
         cat << 'EOF' > src/main/java/com/fpsboost/mixin/TextureManagerMixin.java
         package com.fpsboost.mixin;
 
@@ -312,7 +304,6 @@ jobs:
         }
         EOF
 
-        # میکس‌این ۷: تزریق کلید فعالسازی منوی پراکسی ویتوری در منوی کلاینت سرورها
         cat << 'EOF' > src/main/java/com/fpsboost/mixin/MultiplayerScreenMixin.java
         package com.fpsboost.mixin;
 
@@ -341,7 +332,6 @@ jobs:
         }
         EOF
 
-        # میکس‌این ۸: قابلیت سدیم اکسترا - حذف مِه برای پرواز شگفت‌انگیز فریم‌ریت پردازنده گرافیکی
         cat << 'EOF' > src/main/java/com/fpsboost/mixin/FogRenderMixin.java
         package com.fpsboost.mixin;
 
@@ -364,7 +354,6 @@ jobs:
         }
         EOF
 
-        # میکس‌این ۹: کپچر ناهمگام و ترید موازی فریم‌ها برای سیستم شارد رکوردر بدون افت ۱ فریم گرافیک گوشی
         cat << 'EOF' > src/main/java/com/fpsboost/mixin/GameRendererMixin.java
         package com.fpsboost.mixin;
 
@@ -387,7 +376,6 @@ jobs:
         }
         EOF
 
-        # ایجاد داشبورد مرکزی مدیریت کل امکانات مود نسخه ۲ (اضافه شدن منوی دکمه شارد فیلم برداری)
         cat << 'EOF' > src/main/java/com/fpsboost/ui/FPSBoostMenuScreen.java
         package com.fpsboost.ui;
 
@@ -405,28 +393,23 @@ jobs:
 
             @Override
             protected void init() {
-                // دکمه فعالسازی موتور تست فریم ریت هوشمند ۵ مرحله‌ای
                 this.addDrawableChild(ButtonWidget.builder(Text.literal("§e⚡ Run Smart AI Auto Optimize"), button -> {
                     BenchmarkEngine.start();
                     this.client.setScreen(null);
                 }).dimensions(this.width / 2 - 110, this.height / 2 - 55, 220, 20).build());
 
-                // دکمه تنظیمات پراکسی ویتوری ضد تحریم و پینگ پایین
                 this.addDrawableChild(ButtonWidget.builder(Text.literal("§b🌐 V2Ray Proxy Setup"), button -> {
                     this.client.setScreen(new V2RayScreen(this));
                 }).dimensions(this.width / 2 - 110, this.height / 2 - 30, 220, 20).build());
 
-                // دکمه جدید سیستم شارد فیلم برداری بدون لگ دپوی GPU
                 this.addDrawableChild(ButtonWidget.builder(Text.literal("§d🎥 Remote Shard Recorder"), button -> {
                     this.client.setScreen(new RemoteRecordScreen(this));
                 }).dimensions(this.width / 2 - 110, this.height / 2 - 5, 220, 20).build());
 
-                // دکمه افزونه‌های سدیم اکسترا برای مهار لگ موبایل
                 this.addDrawableChild(ButtonWidget.builder(Text.literal("§a⚙ Sodium Addon Settings"), button -> {
                     this.client.setScreen(new AddonSettingsScreen(this));
                 }).dimensions(this.width / 2 - 110, this.height / 2 + 20, 220, 20).build());
 
-                // دکمه بازگشت به منوی قبل
                 this.addDrawableChild(ButtonWidget.builder(Text.literal("Back"), button -> {
                     this.client.setScreen(this.parent);
                 }).dimensions(this.width / 2 - 50, this.height / 2 + 55, 100, 20).build());
@@ -441,7 +424,6 @@ jobs:
         }
         EOF
 
-        # ارتقای موتور هوشمند به ۵ فاز پیشرفته به همراه لاگین زنده روی هاد صفحه
         cat << 'EOF' > src/main/java/com/fpsboost/ui/BenchmarkEngine.java
         package com.fpsboost.ui;
 
@@ -570,7 +552,6 @@ jobs:
         }
         EOF
 
-        # رابط کاربری پروکسی ویتوری
         cat << 'EOF' > src/main/java/com/fpsboost/ui/V2RayScreen.java
         package com.fpsboost.ui;
 
@@ -699,7 +680,6 @@ jobs:
         }
         EOF
 
-        # منوی افزونه‌های سدیم اکسترا
         cat << 'EOF' > src/main/java/com/fpsboost/ui/AddonSettingsScreen.java
         package com.fpsboost.ui;
 
@@ -744,7 +724,6 @@ jobs:
         }
         EOF
 
-        # جدید v2: منوی تنظیمات شارد دوم برای درج آدرس موقت رکوردر ویدیو بدون فشار به کارت گرافیک گوشی
         cat << 'EOF' > src/main/java/com/fpsboost/ui/RemoteRecordScreen.java
         package com.fpsboost.ui;
 
@@ -769,7 +748,6 @@ jobs:
 
             @Override
             protected void init() {
-                // لود تنظیمات قبلی شارد از فایل کانفیگ اختصاصی رکوردر
                 if (RemoteRecordEngine.shardIp.isEmpty()) {
                     try {
                         File file = new File(MinecraftClient.getInstance().runDirectory, "shard_record_config.txt");
@@ -797,13 +775,11 @@ jobs:
                 this.shardPortInput.setText(String.valueOf(RemoteRecordEngine.shardPort == 0 ? 5000 : RemoteRecordEngine.shardPort));
                 this.addDrawableChild(this.shardPortInput);
 
-                // دکمه تاگل استارت و استاپ لایو ویدیو شارد دوم بدون فشار گرافیکی
                 String recordBtnText = RemoteRecordEngine.isRecording() ? "§c🛑 STOP SHARD RECORD" : "§a▶ START SHARD RECORD";
                 this.addDrawableChild(ButtonWidget.builder(Text.literal(recordBtnText), button -> {
                     RemoteRecordEngine.shardIp = this.shardIpInput.getText().trim();
                     try { RemoteRecordEngine.shardPort = Integer.parseInt(this.shardPortInput.getText().trim()); } catch(Exception e) { RemoteRecordEngine.shardPort = 5000; }
                     
-                    // ذخیره در فایل متنی کانفیگ رکوردر
                     try {
                         File file = new File(MinecraftClient.getInstance().runDirectory, "shard_record_config.txt");
                         FileWriter writer = new FileWriter(file);
@@ -834,7 +810,6 @@ jobs:
         }
         EOF
 
-        # جدید v2: موتور استریم ناهمگام پکت‌های تصویر به شارد رانر دوم در بک‌گراند کاملاً موازی
         cat << 'EOF' > src/main/java/com/fpsboost/ui/RemoteRecordEngine.java
         package com.fpsboost.ui;
 
@@ -848,7 +823,6 @@ jobs:
             public static int shardPort = 5000;
             private static boolean recording = false;
             
-            // صف ناهمگام (Async Queue) برای انتقال دیتا بدون معطل کردن ترید اصلی بازی
             private static final LinkedBlockingQueue<byte[]> frameQueue = new LinkedBlockingQueue<>(30);
             private static Thread networkThread = null;
             private static Socket socket = null;
@@ -873,7 +847,6 @@ jobs:
                         socket = new Socket(shardIp, shardPort);
                         outputStream = socket.getOutputStream();
                         
-                        // هدر پکت اولیه برای اعلام آمادگی بیلد سورس رکوردر ویدیو شارد
                         outputStream.write("SHARD_REC_START\n".getBytes());
                         outputStream.flush();
 
@@ -883,7 +856,7 @@ jobs:
                                 outputStream.write(frameData);
                                 outputStream.flush();
                             }
-                            Thread.sleep(10); // مهار ترافیک بیهوده شبکه بافر گوشی
+                            Thread.sleep(10);
                         }
                     } catch (Exception e) {
                         recording = false;
@@ -910,13 +883,11 @@ jobs:
                 frameQueue.clear();
             }
 
-            // متد فرستادن اطلاعات فریم در کسر از میلی ثانیه به صف بدون درگیر کردن رندر گرافیک گوشی پلیر
             public static void captureFrameAsync() {
                 try {
                     MinecraftClient client = MinecraftClient.getInstance();
                     if (client == null || client.player == null) return;
 
-                    // ارسال متادیتاهای دوربین و موقعیت بجای پردازش رندر تصویر روی موبایل (سیاست بارگذاری معکوس بار پردازشی)
                     double px = client.player.getX();
                     double py = client.player.getY();
                     double pz = client.player.getZ();
@@ -925,7 +896,6 @@ jobs:
 
                     String telemetryPacket = String.format("FRAME_DATA|X:%.2f,Y:%.2f,Z:%.2f|YAW:%.2f,PIT:%.2f\n", px, py, pz, yaw, pitch);
                     
-                    // افزودن غیرمنتظره به صف جهت تخلیه آنی توسط ترد شبکه بک گراند
                     if (frameQueue.remainingCapacity() > 0) {
                         frameQueue.offer(telemetryPacket.getBytes());
                     }
@@ -935,13 +905,47 @@ jobs:
         EOF
         echo "=== تمامی کدهای نسخه ۲ شارد رکوردر با موفقیت به سورس اضافه شدند ==="
 
-    # ۳. بیلد نهایی مود بدون اتلاف وقت
     - name: Build Mod with Gradle Wrapper
       run: ./gradlew build
 
-    # ۴. آپلود فایل نهایی جار برای دانلود مستقیم
+    # ۴. آپلود فایل نهایی جار (حل مشکل پیدا نشدن فایل با تغییر مسیر به *.jar)
     - name: Upload Mod Jar Artifact
       uses: actions/upload-artifact@v4
       with:
         name: FPS-Boost-Mod-Extreme-Java17-1.21.1
-        path: build/libs/*-1.0.0.jar
+        path: build/libs/*.jar
+
+  # جاب دوم: جاب رانر شارد (Shard Runner) که موازی با بیلد اجرا میشه
+  shard-runner:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+
+    - name: Setup Python Environment
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+
+    - name: Start Shard Telemetry Receiver Server
+      run: |
+        echo "=== در حال آماده‌سازی و کانفیگ سرور بک‌گراند شارد رانر ==="
+        
+        # ساخت اسکریپت سرور پایتون برای گوش دادن به داده‌های ارسالی از مود پوجاو
+        cat << 'EOF' > shard_server.py
+        import socket
+
+        def run_server():
+            server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            server_socket.bind(('0.0.0.0', 5000))
+            server_socket.listen(1)
+            print("[SHARD] Server successfully listening on port 5000...")
+            
+            # اینجا می‌تونی منطق ذخیره‌سازی تلمتری یا مدیریت پکت‌ها رو پیاده کنی
+            print("[SHARD] Waiting for remote stream connection from client mod...")
+
+        if __name__ == '__main__':
+            run_server()
+        EOF
+        
+        python shard_server.py
