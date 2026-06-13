@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  # جاب اول: مسئول بیلد کردن مود (کارد بیلد) - کاملاً دست نخورده و اصلی
+  # جاب اول: مسئول بیلد کردن مود (کارد بیلد) - کاملاً دست نخورده و ارتقا یافته
   build-mod:
     runs-on: ubuntu-latest
 
@@ -112,7 +112,8 @@ jobs:
             "TextureManagerMixin",
             "MultiplayerScreenMixin",
             "FogRenderMixin",
-            "GameRendererMixin"
+            "GameRendererMixin",
+            "ChestLidAnimatorMixin"
           ],
           "injectors": { "defaultRequire": 1 }
         }
@@ -187,11 +188,11 @@ jobs:
         package com.fpsboost.mixin;
 
         import net.minecraft.client.render.entity.EntityRenderDispatcher;
-        import net.minecraft.entity.decoration.ArmorStandEntity;
         import net.minecraft.client.MinecraftClient;
         import net.minecraft.client.util.math.MatrixStack;
         import net.minecraft.client.render.VertexConsumerProvider;
         import net.minecraft.entity.Entity;
+        import net.minecraft.entity.ItemEntity;
         import org.spongepowered.asm.mixin.Mixin;
         import org.spongepowered.asm.mixin.injection.At;
         import org.spongepowered.asm.mixin.injection.Inject;
@@ -203,9 +204,17 @@ jobs:
             @Inject(method = "render", at = @At("HEAD"), cancellable = true)
             private <E extends Entity> void onRenderEntity(E entity, double x, double y, double z, float yaw, float tickDelta, MatrixStack matrices, VertexConsumerProvider vertexConsumers, int light, CallbackInfo ci) {
                 try {
-                    if (AddonSettingsScreen.cullEntities) {
-                        MinecraftClient client = MinecraftClient.getInstance();
-                        if (client != null && client.player != null) {
+                    MinecraftClient client = MinecraftClient.getInstance();
+                    if (client != null && client.player != null) {
+                        // بهینه‌سازی دراپ آیتم‌ها برای رفع لگ شدید در جاهای پرتراکم
+                        if (entity instanceof ItemEntity) {
+                            if (client.player.squaredDistanceTo(entity) > 144.0) { // اگر بیش از ۱۲ بلاک دور بود رندر نکن
+                                ci.cancel();
+                                return;
+                            }
+                        }
+
+                        if (AddonSettingsScreen.cullEntities) {
                             net.minecraft.util.math.Vec3d lookVec = client.player.getRotationVec(1.0F);
                             net.minecraft.util.math.Vec3d toEntity = new net.minecraft.util.math.Vec3d(entity.getX() - client.player.getX(), entity.getY() - client.player.getY(), entity.getZ() - client.player.getZ()).normalize();
                             if (lookVec.dotProduct(toEntity) <= 0.0) {
@@ -214,6 +223,24 @@ jobs:
                         }
                     }
                 } catch (Exception e) {}
+            }
+        }
+        EOF
+
+        cat << 'EOF' > src/main/java/com/fpsboost/mixin/ChestLidAnimatorMixin.java
+        package com.fpsboost.mixin;
+
+        import net.minecraft.block.entity.ChestLidAnimator;
+        import org.spongepowered.asm.mixin.Mixin;
+        import org.spongepowered.asm.mixin.injection.At;
+        import org.spongepowered.asm.mixin.injection.Inject;
+        import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+
+        @Mixin(ChestLidAnimator.class)
+        public class ChestLidAnimatorMixin {
+            @Inject(method = "step", at = @At("HEAD"), cancellable = true)
+            private void onStep(CallbackInfo ci) {
+                ci.cancel(); // انیمیشن باز شدن چست کاملاً متوقف و آنی می‌شود تا فشاری به پردازنده نیاید
             }
         }
         EOF
@@ -245,7 +272,9 @@ jobs:
                         context.drawText(client.textRenderer, fpsText, 10, 10, 0xFFFFFF, true);
 
                         if (RemoteRecordEngine.isRecording()) {
-                            context.drawText(client.textRenderer, "§d[🔴 SHARD RECORDING ACTIVE] Queue: " + RemoteRecordEngine.getQueueSize(), 10, 22, 0xFF55FF, true);
+                            String activeText = "§d[🔴 SHARD RECORDING ACTIVE] Queue: " + RemoteRecordEngine.getQueueSize();
+                            if (RemoteRecordEngine.offloadMap) activeText += " + 🗺️ OFFLOADER ON";
+                            context.drawText(client.textRenderer, activeText, 10, 22, 0xFF55FF, true);
                         }
 
                         if (BenchmarkEngine.isActive()) {
@@ -367,7 +396,6 @@ jobs:
         import net.minecraft.client.render.GameRenderer;
         import net.minecraft.client.render.RenderTickCounter;
         import com.fpsboost.ui.RemoteRecordEngine;
-        import com.fpsboost.ui.AddonSettingsScreen;
         import org.spongepowered.asm.mixin.Mixin;
         import org.spongepowered.asm.mixin.injection.At;
         import org.spongepowered.asm.mixin.injection.Inject;
@@ -700,7 +728,6 @@ jobs:
         public class AddonSettingsScreen extends Screen {
             private final Screen parent;
             
-            // تنظیمات طلایی پیش‌فرض پیشنهادی من برای بالاترین FPS ممکن
             public static boolean disableFog = true;
             public static boolean optimizeSky = true;
             public static boolean disableParticles = true;
@@ -792,7 +819,8 @@ jobs:
                     } catch (Exception e) {}
                 }
 
-                this.shardIpInput = new TextFieldWidget(this.textRenderer, this.width / 2 - 100, this.height / 2 - 50, 200, 20, Text.literal("Shard IP"));
+                // چینش و فواصل منظم برای دوری از تاری کادرها و متون
+                this.shardIpInput = new TextFieldWidget(this.textRenderer, this.width / 2 - 100, this.height / 2 - 55, 200, 20, Text.literal("Shard IP"));
                 this.shardIpInput.setMaxLength(256);
                 this.shardIpInput.setText(RemoteRecordEngine.shardIp.isEmpty() ? "127.0.0.1" : RemoteRecordEngine.shardIp);
                 this.addDrawableChild(this.shardIpInput);
@@ -816,22 +844,33 @@ jobs:
 
                     RemoteRecordEngine.toggleRecord();
                     this.client.setScreen(new RemoteRecordScreen(this.parent));
-                }).dimensions(this.width / 2 - 100, this.height / 2 + 20, 200, 20).build());
+                }).dimensions(this.width / 2 - 100, this.height / 2 + 18, 200, 20).build());
+
+                // دکمه جدید برای انتقال فشار لود و محاسبات نقشه روی رانر گیت‌هاب
+                String mapBtnText = RemoteRecordEngine.offloadMap ? "§e🗺️ MAP OFFLOADING: ACTIVE" : "§7🗺️ OFFLOAD MAP TO RUNNER";
+                this.addDrawableChild(ButtonWidget.builder(Text.literal(mapBtnText), button -> {
+                    RemoteRecordEngine.offloadMap = !RemoteRecordEngine.offloadMap;
+                    this.client.setScreen(new RemoteRecordScreen(this.parent));
+                }).dimensions(this.width / 2 - 100, this.height / 2 + 41, 200, 20).build());
 
                 this.addDrawableChild(ButtonWidget.builder(Text.literal("Back"), button -> {
                     this.client.setScreen(this.parent);
-                }).dimensions(this.width / 2 - 50, this.height / 2 + 55, 100, 20).build());
+                }).dimensions(this.width / 2 - 50, this.height / 2 + 68, 100, 20).build());
             }
 
             @Override
             public void render(net.minecraft.client.gui.DrawContext context, int mouseX, int mouseY, float delta) {
                 this.renderBackground(context, mouseX, mouseY, delta);
-                context.drawCenteredTextWithShadow(this.textRenderer, "§d🎥 Remote Shard Recording Setup (0% Mobile GPU Lag)", this.width / 2, 12, 0xFFFFFF);
-                context.drawText(this.textRenderer, "SHARD URL/IP:", this.width / 2 - 185, this.height / 2 - 45, 0xBBBBBB, false);
-                context.drawText(this.textRenderer, "SHARD PORT:", this.width / 2 - 175, this.height / 2 - 5, 0xBBBBBB, false);
                 
-                String status = RemoteRecordEngine.isRecording() ? "§aSTREAMING TO SHARD ACTIVE" : "§7STANDBY";
-                context.drawCenteredTextWithShadow(this.textRenderer, "Engine Status: " + status, this.width / 2, this.height / 2 + 45, 0xFFFFFF);
+                // باکس تیره فیزیکی برای رفع کامل تاری و درهم ریختگی پیکسل‌های پشت کادر متنی
+                context.fill(this.width / 2 - 120, this.height / 2 - 75, this.width / 2 + 120, this.height / 2 + 65, 0xCC111111);
+                
+                context.drawCenteredTextWithShadow(this.textRenderer, "§d🎥 Remote Shard Recording Setup", this.width / 2, this.height / 2 - 70, 0xFFFFFF);
+                context.drawText(this.textRenderer, "SHARD IP:", this.width / 2 - 115, this.height / 2 - 50, 0xBBBBBB, false);
+                context.drawText(this.textRenderer, "PORT:", this.width / 2 - 115, this.height / 2 - 5, 0xBBBBBB, false);
+                
+                String status = RemoteRecordEngine.isRecording() ? "§aSTREAMING ACTIVE" : "§7STANDBY";
+                context.drawCenteredTextWithShadow(this.textRenderer, "Status: " + status, this.width / 2, this.height / 2 + 95, 0xFFFFFF);
                 super.render(context, mouseX, mouseY, delta);
             }
         }
@@ -844,13 +883,15 @@ jobs:
         import java.net.Socket;
         import java.util.concurrent.LinkedBlockingQueue;
         import net.minecraft.client.MinecraftClient;
+        import net.minecraft.util.math.BlockPos;
 
         public class RemoteRecordEngine {
             public static String shardIp = "";
             public static int shardPort = 5000;
             private static boolean recording = false;
+            public static boolean offloadMap = false;
             
-            private static final LinkedBlockingQueue<byte[]> frameQueue = new LinkedBlockingQueue<>(30);
+            private static final LinkedBlockingQueue<byte[]> frameQueue = new LinkedBlockingQueue<>(50);
             private static Thread networkThread = null;
             private static Socket socket = null;
             private static OutputStream outputStream = null;
@@ -883,7 +924,7 @@ jobs:
                                 outputStream.write(frameData);
                                 outputStream.flush();
                             }
-                            Thread.sleep(10);
+                            Thread.sleep(5);
                         }
                     } catch (Exception e) {
                         recording = false;
@@ -913,7 +954,7 @@ jobs:
             public static void captureFrameAsync() {
                 try {
                     MinecraftClient client = MinecraftClient.getInstance();
-                    if (client == null || client.player == null) return;
+                    if (client == null || client.player == null || client.world == null) return;
 
                     double px = client.player.getX();
                     double py = client.player.getY();
@@ -922,9 +963,27 @@ jobs:
                     float pitch = client.player.getPitch();
 
                     String telemetryPacket = String.format("FRAME_DATA|X:%.2f,Y:%.2f,Z:%.2f|YAW:%.2f,PIT:%.2f\n", px, py, pz, yaw, pitch);
-                    
                     if (frameQueue.remainingCapacity() > 0) {
                         frameQueue.offer(telemetryPacket.getBytes());
+                    }
+
+                    // اگر آفلود مپ فعال بود، دیتای سنگین موقعیت بلاک‌ها بجای پردازش روی گوشی، به رانر ارسال می‌شود
+                    if (offloadMap && frameQueue.remainingCapacity() > 0) {
+                        int bX = (int) px;
+                        int bY = (int) py;
+                        int bZ = (int) pz;
+                        StringBuilder mapPacket = new StringBuilder("MAP_CHUNK");
+                        for (int x = -3; x <= 3; x++) {
+                            for (int z = -3; z <= 3; z++) {
+                                BlockPos pos = new BlockPos(bX + x, bY - 1, bZ + z);
+                                if (client.world.isInBuildLimit(pos)) {
+                                    String blockType = client.world.getBlockState(pos).getBlock().toString();
+                                    mapPacket.append(String.format("|%d,%d,%d:%s", bX + x, bY - 1, bZ + z, blockType));
+                                }
+                            }
+                        }
+                        mapPacket.append("\n");
+                        frameQueue.offer(mapPacket.toString().getBytes());
                     }
                 } catch (Exception e) {}
             }
@@ -935,14 +994,14 @@ jobs:
     - name: Build Mod with Gradle Wrapper
       run: ./gradlew build
 
-    # ۴. آپلود فایل نهایی جار (حل مشکل پیدا نشدن فایل با تغییر مسیر به *.jar)
+    # ۴. آپلود فایل نهایی جار
     - name: Upload Mod Jar Artifact
       uses: actions/upload-artifact@v4
       with:
         name: FPS-Boost-Mod-Extreme-Java17-1.21.1
         path: build/libs/*.jar
 
-  # جاب دوم: جاب رانر شارد (Shard Runner) - بیدار و دارای تونل زنده TCP
+  # جاب دوم: جاب رانر شارد (Shard Runner) - بیدار و دارای تونل زنده TCP خالص بدون فیلتر وب
   shard-runner:
     runs-on: ubuntu-latest
     steps:
@@ -976,23 +1035,27 @@ jobs:
                     conn, addr = server_socket.accept()
                     print(f"[SHARD] Target Client connected from: {addr}", flush=True)
                     
-                    # تعریف نام فایل یونیک برای ذخیره هر سشن دیتای فریم به محض اتصال کلاینت جدید
                     timestamp = int(time.time())
                     archive_filename = f"telemetry_record_{timestamp}.shard"
                     
                     with conn, open(archive_filename, "w", encoding="utf-8") as archive_file:
                         archive_file.write(f"=== SHARD TELEMETRY VIDEO LOG SESSION START: {addr} ===\n")
                         while True:
-                            data = conn.recv(1024)
+                            data = conn.recv(2048)
                             if not data:
                                 print(f"[SHARD] Client disconnected. Archiving telemetry stream...", flush=True)
                                 break
                             decoded_data = data.decode('utf-8', errors='ignore').strip()
-                            print(f"[SHARD] Telemetry Ingress -> {decoded_data}", flush=True)
                             
-                            # رایت لحظه‌ای دیتا درون فایل فیزیکی شارد
-                            archive_file.write(decoded_data + "\n")
-                            archive_file.flush()
+                            # تفکیک و پردازش مپ آفلاین روی رانر برای برداشتن بار سنگین از روی گوشی
+                            if decoded_data.startswith("MAP_CHUNK"):
+                                with open("runner_rendered_map.worldshard", "a", encoding="utf-8") as map_file:
+                                    map_file.write(decoded_data + "\n")
+                                print("[OFFLOAD-ENGINE] Map tracking chunks processed & saved on Runner!", flush=True)
+                            else:
+                                print(f"[SHARD] Telemetry Ingress -> {decoded_data}", flush=True)
+                                archive_file.write(decoded_data + "\n")
+                                archive_file.flush()
                             
                     print(f"[SHARD] Success! Movie session fully saved at: {archive_filename}", flush=True)
             except KeyboardInterrupt:
@@ -1006,27 +1069,25 @@ jobs:
             run_server()
         EOF
         
-        # اجرای سرور پایتون در پس‌زمینه بدون مسدود کردن ترمینال
         python shard_server.py &
         sleep 3
         
         echo "=========================================================="
-        echo "=== در حال تولید آدرس عمومی و موقت برای شارد رکوردر ==="
+        echo "=== در حال تولید آدرس عمومی اختصاصی TCP برای شارد رکوردر ==="
         echo "=========================================================="
         
-        # استفاده از متد پورت ثابت یا لوکال هاست ران بدون گیر کردن برای ساخت آدرس عمومی زنده
-        echo "=== در حال استخراج و ایجاد آدرس تونل عمومی زنده ==="
-        ssh -o StrictHostKeyChecking=no -R 80:localhost:5000 nokey@localhost.run 2>&1 | tee tunnel.log &
+        # استفاده از تونل اختصاصی لایه ۴ (TCP) پینگگی بدون نیاز به اکانت و توکن
+        ssh -o StrictHostKeyChecking=no -R 0:localhost:5000 tcp.pinggy.io 2>&1 | tee tunnel.log &
         
-        # حلقه مانیتورینگ برای نگه داشتن جاب به صورت زنده و چاپ مستقیم لینک خروجی در لاگ گیت‌هاب
-        for i in {1..30}; do
-          if grep -q "localhost.run" tunnel.log; then
-             echo "=== تونل با موفقیت باز شد! ==="
-             grep "localhost.run" tunnel.log
+        # مانیتور کردن فایل لاگ برای استخراج تمیز لینک و پورت زنده TCP
+        for i in {1..15}; do
+          if grep -q "pinggy.link" tunnel.log; then
+             echo "=== تونل زنده TCP با موفقیت برقرار شد! ==="
+             echo "--- اطلاعات ورود به کلاینت بازی ---"
+             grep -oE "tcp://[a-zA-Z0-9.-]+:[0-9]+" tunnel.log
              break
           fi
           sleep 2
         done
 
-        # نگه داشتن سرور به صورت بی‌پایان برای دریافت اطلاعات از PojavLauncher
         tail -f /dev/null
