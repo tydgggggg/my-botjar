@@ -27,10 +27,10 @@ jobs:
     - name: Setup Gradle Wrapper (v8.9)
       run: gradle wrapper --gradle-version 8.9
 
-    # ۲. ساخت ساختار پیشرفته مود فبریک نسخه 1.21.1 مخصوص جاوا 17 پوجاو لانچر (ورژن ۲)
+    # ۲. ساخت ساختار پیشرفته مود فبریک نسخه 1.21.1 مخصوص جاوا 17 پوجاو لانچر (ورژن ۲.۵)
     - name: Generate Advanced Mod Files
       run: |
-        echo "=== در حال تزریق کدهای پیشرفته بهینه‌سازی کلاینت و سیستم شارد رکوردر v2 ==="
+        echo "=== در حال تزریق کدهای پیشرفته بهینه‌سازی کلاینت و سیستم شارد رکوردر v2.5 ==="
         mkdir -p src/main/java/com/fpsboost/mixin
         mkdir -p src/main/java/com/fpsboost/ui
         mkdir -p src/main/resources
@@ -53,7 +53,7 @@ jobs:
         plugins {
             id 'fabric-loom' version '1.7-SNAPSHOT'
         }
-        version = '2.0.0'
+        version = '2.5.0'
         group = 'com.fpsboost'
         repositories { mavenCentral() }
         dependencies {
@@ -127,12 +127,15 @@ jobs:
         import org.spongepowered.asm.mixin.injection.At;
         import org.spongepowered.asm.mixin.injection.Inject;
         import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+        import com.fpsboost.ui.AddonSettingsScreen;
 
         @Mixin(ParticleManager.class)
         public class ParticleManagerMixin {
             @Inject(method = "addParticle(Lnet/minecraft/client/particle/Particle;)V", at = @At("HEAD"), cancellable = true)
             private void onAddParticle(Particle particle, CallbackInfo ci) {
-                ci.cancel();
+                if (AddonSettingsScreen.disableParticles) {
+                    ci.cancel();
+                }
             }
         }
         EOF
@@ -151,24 +154,27 @@ jobs:
         import org.spongepowered.asm.mixin.injection.At;
         import org.spongepowered.asm.mixin.injection.Inject;
         import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+        import com.fpsboost.ui.AddonSettingsScreen;
 
         @Mixin(BlockEntityRenderDispatcher.class)
         public class BlockEntityRenderMixin {
             @Inject(method = "render", at = @At("HEAD"), cancellable = true)
             private <E extends BlockEntity> void onRenderBlockEntity(E blockEntity, float tickDelta, MatrixStack matrices, VertexConsumerProvider vertexConsumers, CallbackInfo ci) {
                 try {
-                    MinecraftClient client = MinecraftClient.getInstance();
-                    if (client != null && client.player != null && blockEntity.getPos() != null) {
-                        if (blockEntity instanceof ChestBlockEntity || blockEntity instanceof EnderChestBlockEntity) {
-                            double bx = blockEntity.getPos().getX() + 0.5;
-                            double by = blockEntity.getPos().getY() + 0.5;
-                            double bz = blockEntity.getPos().getZ() + 0.5;
+                    if (AddonSettingsScreen.cullEntities) {
+                        MinecraftClient client = MinecraftClient.getInstance();
+                        if (client != null && client.player != null && blockEntity.getPos() != null) {
+                            if (blockEntity instanceof ChestBlockEntity || blockEntity instanceof EnderChestBlockEntity) {
+                                double bx = blockEntity.getPos().getX() + 0.5;
+                                double by = blockEntity.getPos().getY() + 0.5;
+                                double bz = blockEntity.getPos().getZ() + 0.5;
 
-                            net.minecraft.util.math.Vec3d lookVec = client.player.getRotationVec(1.0F);
-                            net.minecraft.util.math.Vec3d toBlock = new net.minecraft.util.math.Vec3d(bx - client.player.getX(), by - client.player.getEyeY(), bz - client.player.getZ()).normalize();
-                            
-                            if (lookVec.dotProduct(toBlock) <= 0.0) {
-                                ci.cancel();
+                                net.minecraft.util.math.Vec3d lookVec = client.player.getRotationVec(1.0F);
+                                net.minecraft.util.math.Vec3d toBlock = new net.minecraft.util.math.Vec3d(bx - client.player.getX(), by - client.player.getEyeY(), bz - client.player.getZ()).normalize();
+                                
+                                if (lookVec.dotProduct(toBlock) <= 0.0) {
+                                    ci.cancel();
+                                }
                             }
                         }
                     }
@@ -190,13 +196,14 @@ jobs:
         import org.spongepowered.asm.mixin.injection.At;
         import org.spongepowered.asm.mixin.injection.Inject;
         import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+        import com.fpsboost.ui.AddonSettingsScreen;
 
         @Mixin(EntityRenderDispatcher.class)
         public class EntityRenderMixin {
             @Inject(method = "render", at = @At("HEAD"), cancellable = true)
             private <E extends Entity> void onRenderEntity(E entity, double x, double y, double z, float yaw, float tickDelta, MatrixStack matrices, VertexConsumerProvider vertexConsumers, int light, CallbackInfo ci) {
                 try {
-                    if (entity instanceof ArmorStandEntity) {
+                    if (AddonSettingsScreen.cullEntities) {
                         MinecraftClient client = MinecraftClient.getInstance();
                         if (client != null && client.player != null) {
                             net.minecraft.util.math.Vec3d lookVec = client.player.getRotationVec(1.0F);
@@ -360,6 +367,7 @@ jobs:
         import net.minecraft.client.render.GameRenderer;
         import net.minecraft.client.render.RenderTickCounter;
         import com.fpsboost.ui.RemoteRecordEngine;
+        import com.fpsboost.ui.AddonSettingsScreen;
         import org.spongepowered.asm.mixin.Mixin;
         import org.spongepowered.asm.mixin.injection.At;
         import org.spongepowered.asm.mixin.injection.Inject;
@@ -418,7 +426,7 @@ jobs:
             @Override
             public void render(net.minecraft.client.gui.DrawContext context, int mouseX, int mouseY, float delta) {
                 this.renderBackground(context, mouseX, mouseY, delta);
-                context.drawCenteredTextWithShadow(this.textRenderer, "§bKILL_PV2 Custom Optimization Dashboard v2.0", this.width / 2, 15, 0xFFFFFF);
+                context.drawCenteredTextWithShadow(this.textRenderer, "§bKILL_PV2 Custom Optimization Dashboard v2.5", this.width / 2, 15, 0xFFFFFF);
                 super.render(context, mouseX, mouseY, delta);
             }
         }
@@ -458,11 +466,13 @@ jobs:
                 liveLogs.clear();
                 addLog("Starting AI Hardware Analyzer...");
                 
-                profiles.add(new Profile("Potato Android (Ultra)", 2, 4, false));
+                profiles.add(new Profile("KILL_PV2 Aggressive Max-FPS", 2, 2, false));
+                profiles.add(new Profile("Potato Android Core (Ultra)", 2, 4, false));
                 profiles.add(new Profile("Low End Mobile GPU Balance", 3, 4, false));
+                profiles.add(new Profile("Snapdragon Midrange Optimization", 4, 4, false));
                 profiles.add(new Profile("Standard Balanced Execution", 4, 5, false));
-                profiles.add(new Profile("Smooth Advanced Shadow Mapping", 2, 4, true));
-                profiles.add(new Profile("Mali Dynamic Chunk Multithread", 3, 5, true));
+                profiles.add(new Profile("Smooth Advanced Shadow Mapping", 3, 4, true));
+                profiles.add(new Profile("Mali Dynamic Chunk Multithread", 4, 6, true));
 
                 active = true;
                 currentStage = 0;
@@ -478,7 +488,7 @@ jobs:
             public static String getStatusText() {
                 if (!active || currentStage >= profiles.size()) return "";
                 long elapsed = System.currentTimeMillis() - stageStartTime;
-                long remaining = Math.max(0, (20000 - elapsed) / 1000);
+                long remaining = Math.max(0, (15000 - elapsed) / 1000);
                 return "§e[AI Auto Testing] Profile: " + (currentStage + 1) + "/" + profiles.size() + " (" + profiles.get(currentStage).name + ") | " + remaining + "s";
             }
 
@@ -489,14 +499,14 @@ jobs:
                 totalFpsSum += client.getCurrentFps();
 
                 if (totalFrames % 60 == 0) {
-                    addLog("Sample target profile " + (currentStage + 1) + " current instant FPS: " + client.getCurrentFps());
+                    addLog("Sampling profile " + (currentStage + 1) + " Current FPS: " + client.getCurrentFps());
                 }
 
                 long elapsed = System.currentTimeMillis() - stageStartTime;
-                if (elapsed >= 20000) {
+                if (elapsed >= 15000) {
                     Profile current = profiles.get(currentStage);
                     current.avgFps = totalFrames > 0 ? (double) totalFpsSum / totalFrames : 0;
-                    addLog("Profile " + (currentStage + 1) finished. Calculated Average FPS: " + String.format("%.2f", current.avgFps));
+                    addLog("Profile " + (currentStage + 1) + " finished. Avg: " + String.format("%.1f", current.avgFps));
 
                     currentStage++;
                     if (currentStage >= profiles.size()) {
@@ -506,7 +516,7 @@ jobs:
                             if (p.avgFps > best.avgFps) { best = p; }
                         }
                         addLog("=== Optimization Finished ===");
-                        addLog("Best Selected Configuration: " + best.name + " with " + String.format("%.2f", best.avgFps) + " FPS!");
+                        addLog("AI Picked: " + best.name + " (" + String.format("%.1f", best.avgFps) + " FPS)");
                         applyProfile(best);
                         try { client.options.write(); } catch(Exception e){}
                     } else {
@@ -689,8 +699,12 @@ jobs:
 
         public class AddonSettingsScreen extends Screen {
             private final Screen parent;
+            
+            // تنظیمات طلایی پیش‌فرض پیشنهادی من برای بالاترین FPS ممکن
             public static boolean disableFog = true;
             public static boolean optimizeSky = true;
+            public static boolean disableParticles = true;
+            public static boolean cullEntities = true;
 
             public AddonSettingsScreen(Screen parent) {
                 super(Text.literal("Sodium Extra Addon Options"));
@@ -699,20 +713,33 @@ jobs:
 
             @Override
             protected void init() {
+                int btnWidth = 220;
+                int startY = this.height / 2 - 50;
+
                 this.addDrawableChild(ButtonWidget.builder(Text.literal("Disable Minecraft Fog: " + (disableFog ? "§aON" : "§cOFF")), button -> {
                     disableFog = !disableFog;
                     this.client.setScreen(new AddonSettingsScreen(this.parent));
-                }).dimensions(this.width / 2 - 100, this.height / 2 - 30, 200, 20).build());
+                }).dimensions(this.width / 2 - (btnWidth / 2), startY, btnWidth, 20).build());
 
                 this.addDrawableChild(ButtonWidget.builder(Text.literal("Optimize Sky Render: " + (optimizeSky ? "§aON" : "§cOFF")), button -> {
                     optimizeSky = !optimizeSky;
                     if(this.client.worldRenderer != null) this.client.worldRenderer.reload();
                     this.client.setScreen(new AddonSettingsScreen(this.parent));
-                }).dimensions(this.width / 2 - 100, this.height / 2, 200, 20).build());
+                }).dimensions(this.width / 2 - (btnWidth / 2), startY + 24, btnWidth, 20).build());
+
+                this.addDrawableChild(ButtonWidget.builder(Text.literal("Kill Engine Particles: " + (disableParticles ? "§aON" : "§cOFF")), button -> {
+                    disableParticles = !disableParticles;
+                    this.client.setScreen(new AddonSettingsScreen(this.parent));
+                }).dimensions(this.width / 2 - (btnWidth / 2), startY + 48, btnWidth, 20).build());
+
+                this.addDrawableChild(ButtonWidget.builder(Text.literal("Advanced Entity Culling: " + (cullEntities ? "§aON" : "§cOFF")), button -> {
+                    cullEntities = !cullEntities;
+                    this.client.setScreen(new AddonSettingsScreen(this.parent));
+                }).dimensions(this.width / 2 - (btnWidth / 2), startY + 72, btnWidth, 20).build());
 
                 this.addDrawableChild(ButtonWidget.builder(Text.literal("Save & Back"), button -> {
                     this.client.setScreen(this.parent);
-                }).dimensions(this.width / 2 - 50, this.height / 2 + 40, 100, 20).build());
+                }).dimensions(this.width / 2 - 50, startY + 102, 100, 20).build());
             }
 
             @Override
@@ -903,7 +930,7 @@ jobs:
             }
         }
         EOF
-        echo "=== تمامی کدهای نسخه ۲ شارد رکوردر با موفقیت به سورس اضافه شدند ==="
+        echo "=== تمامی کدهای نسخه ۲.۵ شارد رکوردر با موفقیت به سورس اضافه شدند ==="
 
     - name: Build Mod with Gradle Wrapper
       run: ./gradlew build
@@ -934,6 +961,7 @@ jobs:
         cat << 'EOF' > shard_server.py
         import socket
         import sys
+        import time
 
         def run_server():
             server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -947,14 +975,26 @@ jobs:
                 while True:
                     conn, addr = server_socket.accept()
                     print(f"[SHARD] Target Client connected from: {addr}", flush=True)
-                    with conn:
+                    
+                    # تعریف نام فایل یونیک برای ذخیره هر سشن دیتای فریم به محض اتصال کلاینت جدید
+                    timestamp = int(time.time())
+                    archive_filename = f"telemetry_record_{timestamp}.shard"
+                    
+                    with conn, open(archive_filename, "w", encoding="utf-8") as archive_file:
+                        archive_file.write(f"=== SHARD TELEMETRY VIDEO LOG SESSION START: {addr} ===\n")
                         while True:
                             data = conn.recv(1024)
                             if not data:
-                                print("[SHARD] Client disconnected. Waiting for new connection...", flush=True)
+                                print(f"[SHARD] Client disconnected. Archiving telemetry stream...", flush=True)
                                 break
                             decoded_data = data.decode('utf-8', errors='ignore').strip()
                             print(f"[SHARD] Telemetry Ingress -> {decoded_data}", flush=True)
+                            
+                            # رایت لحظه‌ای دیتا درون فایل فیزیکی شارد
+                            archive_file.write(decoded_data + "\n")
+                            archive_file.flush()
+                            
+                    print(f"[SHARD] Success! Movie session fully saved at: {archive_filename}", flush=True)
             except KeyboardInterrupt:
                 print("\n[SHARD] Server shutting down manually.", flush=True)
             except Exception as e:
