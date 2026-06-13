@@ -496,7 +496,7 @@ jobs:
                 if (elapsed >= 20000) {
                     Profile current = profiles.get(currentStage);
                     current.avgFps = totalFrames > 0 ? (double) totalFpsSum / totalFrames : 0;
-                    addLog("Profile " + (currentStage + 1) + " finished. Calculated Average FPS: " + String.format("%.2f", current.avgFps));
+                    addLog("Profile " + (currentStage + 1) finished. Calculated Average FPS: " + String.format("%.2f", current.avgFps));
 
                     currentStage++;
                     if (currentStage >= profiles.size()) {
@@ -970,14 +970,23 @@ jobs:
         python shard_server.py &
         sleep 3
         
-        # ایجاد تونل زنده، رایگان و آنی با قابلیت اتصال مجدد خودکار
         echo "=========================================================="
         echo "=== در حال تولید آدرس عمومی و موقت برای شارد رکوردر ==="
         echo "=========================================================="
         
-        # استفاده از Serveo به همراه حلقه خودکار برای پایداری کامل و جلوگیری از ارور 255
-        while true; do
-          echo "=== در حال برقراری اتصال به سرور تونل (Serveo) ==="
-          ssh -tt -o StrictHostKeyChecking=no -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -R 0:localhost:5000 serveo.net || echo "=== قطع اتصال رخ داد؛ تلاش مجدد در ۵ ثانیه آینده... ==="
-          sleep 5
+        # استفاده از متد پورت ثابت یا لوکال هاست ران بدون گیر کردن برای ساخت آدرس عمومی زنده
+        echo "=== در حال استخراج و ایجاد آدرس تونل عمومی زنده ==="
+        ssh -o StrictHostKeyChecking=no -R 80:localhost:5000 nokey@localhost.run 2>&1 | tee tunnel.log &
+        
+        # حلقه مانیتورینگ برای نگه داشتن جاب به صورت زنده و چاپ مستقیم لینک خروجی در لاگ گیت‌هاب
+        for i in {1..30}; do
+          if grep -q "localhost.run" tunnel.log; then
+             echo "=== تونل با موفقیت باز شد! ==="
+             grep "localhost.run" tunnel.log
+             break
+          fi
+          sleep 2
         done
+
+        # نگه داشتن سرور به صورت بی‌پایان برای دریافت اطلاعات از PojavLauncher
+        tail -f /dev/null
