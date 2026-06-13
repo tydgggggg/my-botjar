@@ -970,8 +970,14 @@ jobs:
         python shard_server.py &
         sleep 3
         
-        # ایجاد تونل زنده، رایگان و آنی برای پورت 5000 بدون نیاز به ساخت اکانت
+        # ایجاد تونل زنده، رایگان و آنی با قابلیت اتصال مجدد خودکار
         echo "=========================================================="
         echo "=== در حال تولید آدرس عمومی و موقت برای شارد رکوردر ==="
         echo "=========================================================="
-        ssh -tt -o StrictHostKeyChecking=no -o ServerAliveInterval=30 -p 443 -R 0:localhost:5000 tcp@pinggy.io
+        
+        # استفاده از Serveo به همراه حلقه خودکار برای پایداری کامل و جلوگیری از ارور 255
+        while true; do
+          echo "=== در حال برقراری اتصال به سرور تونل (Serveo) ==="
+          ssh -tt -o StrictHostKeyChecking=no -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -R 0:localhost:5000 serveo.net || echo "=== قطع اتصال رخ داد؛ تلاش مجدد در ۵ ثانیه آینده... ==="
+          sleep 5
+        done
