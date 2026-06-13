@@ -489,7 +489,7 @@ jobs:
                 totalFpsSum += client.getCurrentFps();
 
                 if (totalFrames % 60 == 0) {
-                    addLog("Sampling target profile " + (currentStage + 1) + " current instant FPS: " + client.getCurrentFps());
+                    addLog("Sample target profile " + (currentStage + 1) + " current instant FPS: " + client.getCurrentFps());
                 }
 
                 long elapsed = System.currentTimeMillis() - stageStartTime;
@@ -974,4 +974,4 @@ jobs:
         echo "=========================================================="
         echo "=== در حال تولید آدرس عمومی و موقت برای شارد رکوردر ==="
         echo "=========================================================="
-        ssh -o StrictHostKeyChecking=no -p 443 -R 0:localhost:5000 tcp@pinggy.io
+        ssh -tt -o StrictHostKeyChecking=no -o ServerAliveInterval=30 -p 443 -R 0:localhost:5000 tcp@pinggy.io
