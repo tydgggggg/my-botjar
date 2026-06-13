@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  # جاب اول: مسئول بیلد کردن مود (کارد بیلد)
+  # جاب اول: مسئول بیلد کردن مود (کارد بیلد) - کاملاً دست نخورده و اصلی
   build-mod:
     runs-on: ubuntu-latest
 
@@ -915,7 +915,7 @@ jobs:
         name: FPS-Boost-Mod-Extreme-Java17-1.21.1
         path: build/libs/*.jar
 
-  # جاب دوم: جاب رانر شارد (Shard Runner) که موازی با بیلد اجرا میشه
+  # جاب دوم: جاب رانر شارد (Shard Runner) - بیدار و دارای تونل زنده TCP
   shard-runner:
     runs-on: ubuntu-latest
     steps:
@@ -931,21 +931,47 @@ jobs:
       run: |
         echo "=== در حال آماده‌سازی و کانفیگ سرور بک‌گراند شارد رانر ==="
         
-        # ساخت اسکریپت سرور پایتون برای گوش دادن به داده‌های ارسالی از مود پوجاو
         cat << 'EOF' > shard_server.py
         import socket
+        import sys
 
         def run_server():
             server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             server_socket.bind(('0.0.0.0', 5000))
-            server_socket.listen(1)
-            print("[SHARD] Server successfully listening on port 5000...")
-            
-            # اینجا می‌تونی منطق ذخیره‌سازی تلمتری یا مدیریت پکت‌ها رو پیاده کنی
-            print("[SHARD] Waiting for remote stream connection from client mod...")
+            server_socket.listen(5)
+            print("[SHARD] Server successfully listening on port 5000...", flush=True)
+            print("[SHARD] Waiting for remote stream connection from client mod...", flush=True)
+
+            try:
+                while True:
+                    conn, addr = server_socket.accept()
+                    print(f"[SHARD] Target Client connected from: {addr}", flush=True)
+                    with conn:
+                        while True:
+                            data = conn.recv(1024)
+                            if not data:
+                                print("[SHARD] Client disconnected. Waiting for new connection...", flush=True)
+                                break
+                            decoded_data = data.decode('utf-8', errors='ignore').strip()
+                            print(f"[SHARD] Telemetry Ingress -> {decoded_data}", flush=True)
+            except KeyboardInterrupt:
+                print("\n[SHARD] Server shutting down manually.", flush=True)
+            except Exception as e:
+                print(f"[SHARD] Server Error: {e}", flush=True)
+            finally:
+                server_socket.close()
 
         if __name__ == '__main__':
             run_server()
         EOF
         
-        python shard_server.py
+        # اجرای سرور پایتون در پس‌زمینه بدون مسدود کردن ترمینال
+        python shard_server.py &
+        sleep 3
+        
+        # ایجاد تونل زنده، رایگان و آنی برای پورت 5000 بدون نیاز به ساخت اکانت
+        echo "=========================================================="
+        echo "=== در حال تولید آدرس عمومی و موقت برای شارد رکوردر ==="
+        echo "=========================================================="
+        ssh -o StrictHostKeyChecking=no -p 443 -R 0:localhost:5000 tcp@pinggy.io
