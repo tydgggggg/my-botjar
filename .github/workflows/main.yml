@@ -1076,15 +1076,15 @@ jobs:
         echo "=== در حال تولید آدرس عمومی اختصاصی TCP برای شارد رکوردر ==="
         echo "=========================================================="
         
-        # استفاده از تونل اختصاصی لایه ۴ (TCP) پینگگی بدون نیاز به اکانت و توکن
-        ssh -o StrictHostKeyChecking=no -R 0:localhost:5000 tcp.pinggy.io 2>&1 | tee tunnel.log &
+        # اصلاح آدرس هاست برای رفع خطای DNS و برقراری تونل لایه ۴ پینگگی بدون نیاز به کدهای اضافی
+        ssh -o StrictHostKeyChecking=no -R 0:localhost:5000 free.pinggy.io 2>&1 | tee tunnel.log &
         
         # مانیتور کردن فایل لاگ برای استخراج تمیز لینک و پورت زنده TCP
         for i in {1..15}; do
-          if grep -q "pinggy.link" tunnel.log; then
+          if grep -q -E "pinggy.link|tcp://" tunnel.log; then
              echo "=== تونل زنده TCP با موفقیت برقرار شد! ==="
              echo "--- اطلاعات ورود به کلاینت بازی ---"
-             grep -oE "tcp://[a-zA-Z0-9.-]+:[0-9]+" tunnel.log
+             grep -oE "tcp://[a-zA-Z0-9.-]+:[0-9]+" tunnel.log || grep -oE "[a-zA-Z0-9.-]+\.pinggy\.link:[0-9]+" tunnel.log
              break
           fi
           sleep 2
